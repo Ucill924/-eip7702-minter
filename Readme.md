@@ -18,7 +18,7 @@
 ## 📁 File Structure
 
 ```
-gork_minter/
+eip7702-minter/
 ├── main_wallet_config.json     ← config main wallet (edit ini dulu!)
 ├── wallets.json                ← auto-generated, simpan data minter wallets
 │
@@ -31,12 +31,16 @@ gork_minter/
 
 ## ⚙️ Requirements
 
-### Python
+### System
+- Python 3.10+
+- Node.js 18+
+
+### Python dependencies
 ```bash
 pip install web3 eth-account mnemonic rlp eth-keys requests
 ```
 
-### Node.js (untuk step2 delegation)
+### Node.js dependencies
 ```bash
 npm install viem
 ```
@@ -45,7 +49,20 @@ npm install viem
 
 ## 🚀 Quick Start
 
-### 1. Edit `main_wallet_config.json`
+### 1. Clone & Install
+
+```bash
+git clone https://github.com/Ucill924/eip7702-minter.git
+cd eip7702-minter
+
+# Install Python deps
+pip install web3 eth-account mnemonic rlp eth-keys requests
+
+# Install Node deps
+npm install viem
+```
+
+### 2. Edit `main_wallet_config.json`
 
 ```json
 {
@@ -57,6 +74,8 @@ npm install viem
 ```
 
 > ⚠️ Main wallet **TIDAK** akan di-delegate ke manapun. Hanya sebagai pengirim fee saja.
+
+> 💡 Untuk RPC URL, daftar gratis di [Alchemy](https://alchemy.com) atau [Infura](https://infura.io)
 
 ---
 
@@ -75,6 +94,10 @@ Script akan menanyakan jumlah wallet secara interaktif:
 └─────────────────────────────────────┘
   Jumlah wallet → 3
   Lanjut? (y/n) → y
+
+  [1] 0xABC... ✅ https://etherscan.io/tx/0x...
+  [2] 0xDEF... ✅ https://etherscan.io/tx/0x...
+  [3] 0xGHI... ✅ https://etherscan.io/tx/0x...
 ```
 
 Atau langsung pakai flag:
@@ -86,24 +109,32 @@ python step1_generate_wallets.py --count 3
 
 ---
 
-### Step 2 — EIP-7702 Delegation ke MintDelegate GORK
+### Step 2 — EIP-7702 Delegation
 
 ```bash
 node step2_delegate.mjs
 ```
 
-Pastikan di `step2_delegate.mjs` delegate contract sudah diubah ke MintDelegate GORK:
+Script akan otomatis:
+- Cek wallet mana yang belum delegated
+- Sign & broadcast EIP-7702 type-4 TX via **viem**
+- Verifikasi delegation on-chain
+- Update status `delegated: true` di `wallets.json`
 
-```javascript
-const DELEGATE_CONTRACT = '0x9941eF1344209F5c7e554eeAC18C9be5dCD9074F';
+Output yang diharapkan:
+```
+[1] Delegating 0xABC...
+    💰 Balance: 0.004923 ETH
+    ✅ Authorization signed | nonce=2
+    📡 TX: https://etherscan.io/tx/0x...
+    ✅ Delegated! Block: 12345678
 ```
 
-- Sign & broadcast EIP-7702 type-4 TX via **viem** (`executor: 'self'`)
-- Target delegate: `0x9941eF1344209F5c7e554eeAC18C9be5dCD9074F` (MintDelegate GORK)
-- Update status `delegated: true` di `wallets.json`
-- Verifikasi via `Validity: True` di Etherscan tab Authorizations
+Verifikasi di Etherscan — buka TX, tab **Authorizations**:
+- `Validity: True` ✅ → sukses
+- `Validity: False` ❌ → jalankan ulang
 
-> ℹ️ Delegation pakai Node.js + viem karena Python `eth-account` tidak support `executor: 'self'` yang dibutuhkan untuk EIP-7702 nonce handling yang benar.
+> ℹ️ Delegation pakai Node.js + viem karena Python `eth-account` tidak support `executor: 'self'` yang dibutuhkan EIP-7702.
 
 ---
 
@@ -125,22 +156,20 @@ Script akan tanya secara interaktif:
 
   Mode mint:
   [1] Sekali saja (3 slot total)
-  [2] Loop terus sampai 3 slot × habis atau Ctrl+C
+  [2] Loop terus sampai max 10 slot atau Ctrl+C
   Pilih mode (1/2) → 2
 
-  Mode     : Loop sampai max
   Lanjut? (y/n) → y
 ```
 
 Output saat berjalan:
-
 ```
 ==================================================
   LOOP #1 — 2026-05-11 07:03:13
-  Wallet: 0x1d30FF222FA4770D1C3Ff0af851cdBbF2f3AdF1c
+  Wallet: 0xABC...
 ==================================================
 >>> check_gork_status
-  founder_nfts: 1 | mints_used: 1 | mints_remaining: 9
+  founder_nfts: 0 | mints_used: 0 | mints_remaining: 10
   public_pool_remaining_slots: 17620
 
 >>> mint_gork (count=3)
@@ -157,23 +186,26 @@ Output saat berjalan:
 ```
 Main Wallet (tidak pernah di-delegate)
     │
-    ├─► Generate N wallet baru          [step1]
+    ├─► Generate N wallet baru          [step1 - Python]
+    │       wallet_1, wallet_2, ..., wallet_N
     │
-    └─► Kirim fee_per_wallet_eth ke tiap wallet  [step1]
+    └─► Kirim fee_per_wallet_eth ke tiap wallet  [step1 - Python]
 
 wallet_1 ... wallet_N
     │
     ├─► EIP-7702 delegation ke MintDelegate      [step2 - Node.js]
-    │       DELEGATE_CONTRACT = 0x9941eF13...
+    │       0x9941eF1344209F5c7e554eeAC18C9be5dCD9074F
     │       signAuthorization(executor: 'self')
     │       → Validity: True ✅
     │
-    └─► Auto SIWE login + Mint via MCP           [mint_gork.py]
-            get nonce → sign SIWE → bind_token
-            → MCP session → mint loop paralel
+    └─► Auto SIWE login + Mint via MCP relay     [mint_gork.py - Python]
+            get nonce → sign SIWE message
+            → POST /siwe/preauth → bind_token
+            → MCP session initialize
+            → mint loop paralel (tiap wallet di thread sendiri)
 
 [Ctrl+C atau max 10 slot]
-    └─► Optional: return sisa ETH ke main wallet
+    └─► Return sisa ETH ke main wallet (opsional)
             python return_fee.py
 ```
 
@@ -189,18 +221,7 @@ wallet_1 ... wallet_N
 | Reward per slot | 1 Founder NFT + 10M $GORK claim |
 | Total supply | 630,690,000,000 $GORK |
 | Total slots global | 21,000 |
-| Claim | Setelah 21,000 mints terpenuhi via `hook.claim()` |
-
----
-
-## 📝 Notes
-
-- `wallets.json` berisi **private key & mnemonic** — **jangan di-commit ke GitHub!**
-- Pastikan `.gitignore` sudah include `wallets.json` dan `main_wallet_config.json`
-- Tiap wallet butuh minimal `0.005 ETH` untuk gas delegation + mint fees
-- Auto SIWE login berlaku 24 jam — script auto refresh setelah 20 jam
-- Step2 aman dijalankan ulang — otomatis skip wallet yang sudah delegated
-- `LOOP_DELAY` default 60 detik — ubah di `mint_gork.py` sesuai kebutuhan
+| Claim aktif | Setelah 21,000 mints terpenuhi via `hook.claim()` |
 
 ---
 
@@ -208,14 +229,35 @@ wallet_1 ... wallet_N
 
 | Error | Solusi |
 |-------|--------|
-| `Validity: False` di Etherscan | Pastikan pakai `node step2_delegate.mjs` dengan contract `0x9941eF13...` |
-| `delegated=False` saat login | Jalankan step2 ulang, cek TX Etherscan |
-| `ETH tidak cukup` | Top up wallet atau naikkan `fee_per_wallet_eth` |
-| `Session expired` | Script auto re-login, tunggu saja |
+| `Validity: False` di Etherscan | Jalankan `node step2_delegate.mjs` ulang |
+| `delegated=False` saat mint | Step2 belum selesai, cek TX Etherscan |
+| `ETH tidak cukup` | Top up wallet atau naikkan `fee_per_wallet_eth` di config |
+| `Session expired` | Script auto re-login otomatis, tunggu saja |
 | `slots remaining: 0` | Wallet sudah max 10 slot |
 | `wallets.json not found` | Jalankan step1 dulu |
+| `JSONDecodeError` | Hapus `wallets.json` yang corrupt, jalankan step1 ulang |
+| `max priority fee > max fee` | RPC bermasalah, ganti ke Alchemy/Infura |
+| Node.js error `Cannot find module 'viem'` | Jalankan `npm install viem` dulu |
 
 ---
 
 
+
 ```
+
+- Wallet minter hanya punya ETH secukupnya untuk gas — risiko minimal
+- Private key tersimpan lokal di `wallets.json` — jaga file ini baik-baik
+
+---
+
+## 📜 Contract Addresses
+
+| Contract | Address |
+|----------|---------|
+| MintDelegate | `0x9941eF1344209F5c7e554eeAC18C9be5dCD9074F` |
+| GorkLaunchHook | `0x2F83f5D250e184E9b4518e6bFFbf3CAe0D7e0080` |
+| Founder NFT | `0x0B0036Fe9a3Dc051F0757D1AeB67950398d92FF0` |
+| $GORK Token | `0xD6d62e400C48570a972635bF4b878bA00FDA1c7E` |
+| Relayer | `0xb4e5164c702363BFaBe7AAECA054652D17765ED3` |
+
+Network: **Ethereum Mainnet (Chain ID: 1)**
