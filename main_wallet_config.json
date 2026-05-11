@@ -1,0 +1,7 @@
+{
+  "private_key": "",
+  "rpc_url": "https://eth-mainnet.g.alchemy.com/v2/YOUR_KEY",
+  "fee_per_wallet_eth": 0.004,
+  "return_fee_after_mint": false,
+  "comment": "Main wallet TIDAK akan di-delegate. Hanya sebagai pengirim fee ke minter wallets."
+}
