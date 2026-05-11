@@ -164,7 +164,7 @@ async function main() {
   console.log(`\n${'='.repeat(55)}`);
   console.log(`✅ STEP 2 SELESAI!`);
   console.log(`   ${count}/${wallets.length} wallet terdelegasi`);
-  if (count > 0) console.log(`   Jalankan: python step3_mint.py`);
+  if (count > 0) console.log(`   Jalankan step3: mint_gork.py`);
   console.log(`${'='.repeat(55)}\n`);
 }
 
