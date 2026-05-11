@@ -217,13 +217,5 @@ wallet_1 ... wallet_N
 
 ---
 
-## ⚠️ Security
 
-Tambahkan ke `.gitignore`:
-```
-wallets.json
-main_wallet_config.json
-.env
-node_modules/
-__pycache__/
 ```
